@@ -2,14 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>The Cellar — Collection Manager</title>
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#2C2C2C">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="The Cellar">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
@@ -90,14 +84,27 @@ legend{font-weight:600;font-size:13px;padding:0 6px}
 svg{vertical-align:middle}
 
 @media(max-width:768px){
-  #sidebar{width:56px}
-  #sidebar .nav-label,#sidebar .sidebar-btns,#sidebar .logo span.title{display:none}
+  #sidebar{position:fixed;left:0;top:0;bottom:0;z-index:900;width:220px!important;transform:translateX(-100%);transition:transform .25s ease}
+  #sidebar.mobile-open{transform:translateX(0)}
+  #sidebar .nav-label,#sidebar .sidebar-btns,#sidebar .logo span.title{display:block!important}
+  #sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:899}
+  #sidebar-overlay.open{display:block}
   .g2{grid-template-columns:1fr}
   #header{flex-wrap:wrap}
+  #header h1{font-size:18px}
+  .search-wrap{max-width:100%!important;order:3;flex-basis:100%}
+  #hamburger{display:flex!important}
+  .modal{padding:16px 18px;margin:10px}
+  #content{padding:16px!important}
+}
+@media(min-width:769px){
+  #sidebar-overlay{display:none!important}
+  #hamburger{display:none!important}
 }
 </style>
 </head>
 <body>
+<div id="sidebar-overlay" onclick="closeMobileSidebar()"></div>
 <div id="sidebar">
   <div class="logo" onclick="toggleSidebar()">
     <span style="font-size:22px">&#129347;</span>
@@ -105,12 +112,15 @@ svg{vertical-align:middle}
   </div>
   <nav id="nav"></nav>
   <div class="sidebar-btns">
-    <button class="btn btn-p" onclick="showAddModal()">+ Add bottle</button>
-    <button class="btn btn-s" onclick="showImportModal()" style="border-color:#555;color:#ccc;background:transparent">&#8593; Import</button>
+    <button class="btn btn-p" onclick="showAddModal();closeMobileSidebar()">+ Add bottle</button>
+    <button class="btn btn-s" onclick="showImportModal();closeMobileSidebar()" style="border-color:#555;color:#ccc;background:transparent">&#8593; Import</button>
   </div>
 </div>
 <div id="main">
   <div id="header">
+    <button id="hamburger" onclick="openMobileSidebar()" style="display:none;background:none;border:none;cursor:pointer;padding:6px;color:var(--text);align-items:center;justify-content:center">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
     <h1 id="page-title">Dashboard</h1>
     <div class="search-wrap">
       <span class="search-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
@@ -162,12 +172,14 @@ function emptyBourbon(){return{id:uid(),category:"bourbon",name:"",distillery:""
 function inCol(d){return!["Consumed","Gifted","Sold"].includes(d.status)}
 
 function toggleSidebar(){document.getElementById("sidebar").classList.toggle("collapsed")}
+function openMobileSidebar(){document.getElementById("sidebar").classList.add("mobile-open");document.getElementById("sidebar-overlay").classList.add("open")}
+function closeMobileSidebar(){document.getElementById("sidebar").classList.remove("mobile-open");document.getElementById("sidebar-overlay").classList.remove("open")}
 
 // NAV
 const navItems=[{id:"dashboard",label:"Dashboard"},{id:"collection",label:"Collection"},{id:"storage",label:"Storage Map"},{id:"reports",label:"Reports & Export"},{id:"settings",label:"Settings"}];
 function renderNav(){
   const nav=document.getElementById("nav");
-  nav.innerHTML=navItems.map(n=>`<div class="nav-item${currentView===n.id?" active":""}" onclick="navigate('${n.id}')"><span class="nav-label">${n.label}</span></div>`).join("");
+  nav.innerHTML=navItems.map(n=>`<div class="nav-item${currentView===n.id?" active":""}" onclick="navigate('${n.id}');closeMobileSidebar()"><span class="nav-label">${n.label}</span></div>`).join("");
 }
 function navigate(v){currentView=v;document.getElementById("page-title").textContent={dashboard:"Dashboard",collection:"Collection",storage:"Storage Map",reports:"Reports & Export",settings:"Settings"}[v];renderNav();renderContent()}
 
@@ -587,65 +599,6 @@ function saveStorageLocation(){
 
 // INIT
 renderNav();renderContent();
-
-// ── PWA: Service Worker Registration ──────────────────────────────
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js')
-      .then(reg => console.log('SW registered:', reg.scope))
-      .catch(err => console.log('SW error:', err));
-  });
-}
-
-// ── PWA: Install Banner ────────────────────────────────────────────
-let deferredPrompt = null;
-const installBanner = document.createElement('div');
-installBanner.id = 'pwa-banner';
-installBanner.style.cssText = `
-  display:none;position:fixed;bottom:0;left:0;right:0;z-index:9999;
-  background:linear-gradient(135deg,#2C2C2C,#1a1a1a);color:#fff;
-  padding:14px 20px 18px;display:flex;align-items:center;justify-content:space-between;
-  gap:12px;box-shadow:0 -4px 20px rgba(0,0,0,.3);
-  border-top:2px solid #D4A017;
-`;
-installBanner.innerHTML = `
-  <div style="display:flex;align-items:center;gap:12px">
-    <span style="font-size:28px">🍷</span>
-    <div>
-      <div style="font-family:Georgia,serif;font-size:15px;font-weight:600">Install The Cellar</div>
-      <div style="font-size:12px;color:#aaa;margin-top:2px">Add to home screen for offline access</div>
-    </div>
-  </div>
-  <div style="display:flex;gap:8px;flex-shrink:0">
-    <button id="pwa-dismiss" style="padding:8px 14px;border-radius:6px;border:1px solid #555;background:transparent;color:#aaa;cursor:pointer;font-size:13px">Not now</button>
-    <button id="pwa-install" style="padding:8px 16px;border-radius:6px;border:none;background:#D4A017;color:#fff;cursor:pointer;font-size:13px;font-weight:600">Install</button>
-  </div>
-`;
-document.body.appendChild(installBanner);
-
-window.addEventListener('beforeinstallprompt', e => {
-  e.preventDefault();
-  deferredPrompt = e;
-  installBanner.style.display = 'flex';
-});
-
-document.getElementById('pwa-install').addEventListener('click', async () => {
-  if (!deferredPrompt) return;
-  deferredPrompt.prompt();
-  const { outcome } = await deferredPrompt.userChoice;
-  deferredPrompt = null;
-  installBanner.style.display = 'none';
-});
-
-document.getElementById('pwa-dismiss').addEventListener('click', () => {
-  installBanner.style.display = 'none';
-  sessionStorage.setItem('pwa-dismissed', '1');
-});
-
-window.addEventListener('appinstalled', () => {
-  installBanner.style.display = 'none';
-  console.log('The Cellar installed as PWA');
-});
 </script>
 </body>
 </html>
